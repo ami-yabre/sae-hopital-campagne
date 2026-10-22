@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  # 1. Le Broker MQTT (Mosquitto)
+  mqtt:
+    image: eclipse-mosquitto:latest
+    container_name: mosquitto_broker
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+    restart: unless-stopped
+
+
+  # 2. Node-RED (Le chef d'orchestre)
+  nodered:
+    image: nodered/node-red:latest
+    container_name: node_red_server
+    ports:
+      - "1880:1880"
+    environment:
+      - TZ=Europe/Paris
+    volumes:
+      - node_red_data:/data
+    restart: unless-stopped
+
+  # 3. InfluxDB v2 (Avec interface web intégrée)
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb_server
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=changeme
+      - DOCKER_INFLUXDB_INIT_ORG=hopital_org
+      - DOCKER_INFLUXDB_INIT_BUCKET=hopital_bucket
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    restart: unless-stopped
+
+  # 4. Grafana (La visualisation)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana_server
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+volumes:
+  node_red_data:
+  influxdb_data:

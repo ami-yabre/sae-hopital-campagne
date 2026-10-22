@@ -1,0 +1,469 @@
+[
+    {
+        "id": "f6f2187d.f17ca8",
+        "type": "tab",
+        "label": "Flow 1",
+        "disabled": false,
+        "info": ""
+    },
+    {
+        "id": "66b7937e5d66ac3c",
+        "type": "mqtt in",
+        "z": "f6f2187d.f17ca8",
+        "name": "",
+        "topic": "iot/badge/access",
+        "qos": "2",
+        "datatype": "json",
+        "broker": "f650b0daa875ac32",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 120,
+        "y": 320,
+        "wires": [
+            [
+                "6f1450cab23c661d"
+            ]
+        ]
+    },
+    {
+        "id": "6f1450cab23c661d",
+        "type": "function",
+        "z": "f6f2187d.f17ca8",
+        "name": "function 1",
+        "func": "let badges = global.get('badges');\nif (!badges) {\n  badges = {\n    '63DF0A28': { nom: 'Aminata', role: 'medecin', salles: ['bloc_operatoire', 'salle_soins', 'pharmacie'] }\n  };\n  global.set('badges', badges);\n}\n\nlet b = String(msg.payload.badge_id || '').toUpperCase();\nlet salle = String(msg.payload.salle || 'inconnue');\nlet connu = Object.prototype.hasOwnProperty.call(badges, b);\nlet ok = connu && badges[b].salles.includes(salle);\n\nlet now = Date.now();\nlet refus = flow.get('refus') || [];\nif (!ok) refus.push(now);\nrefus = refus.filter(t => now - t < 60000);\nflow.set('refus', refus);\n\nlet anomalie = 'aucune';\nlet severite = 'info';\nif (refus.length >= 5)  { anomalie = 'brute_force';        severite = 'critique'; }\nelse if (!connu)        { anomalie = 'badge_inconnu';      severite = 'critique'; }\nelse if (!ok)           { anomalie = 'acces_non_autorise'; severite = 'avertissement'; }\n\nlet nom  = connu ? badges[b].nom  : 'inconnu';\nlet role = connu ? badges[b].role : 'inconnu';\n\nlet m1 = { payload: [\n  {\n    etat: ok ? 'PORTE OUVERTE' : 'AUCUN ACCES',\n    statut: ok ? 'autorise' : 'refuse',\n    utilisateur: nom,\n    role: role,\n    nb_refus_60s: refus.length\n  },\n  { salle: salle, badge_id: b, severite: severite, anomalie: anomalie }\n]};\n\nlet m2 = null;\nif (anomalie !== 'aucune') {\n  m2 = { payload: { type: anomalie, severite: severite, salle: salle, badge_id: b,\n                    utilisateur: nom, role: role, heure: new Date().toISOString() } };\n}\n\nlet m3 = { payload: { badge_id: b, salle: salle, ouvrir: ok } };\nreturn [m1, m2, m3];",
+        "outputs": 3,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 320,
+        "wires": [
+            [
+                "1fc29772ea38246f",
+                "58a172d6582e7191"
+            ],
+            [
+                "d9ed4490bbc3b8b4"
+            ],
+            [
+                "3436fd6817214d26",
+                "8741f7636a8797cd"
+            ]
+        ]
+    },
+    {
+        "id": "1fc29772ea38246f",
+        "type": "influxdb out",
+        "z": "f6f2187d.f17ca8",
+        "influxdb": "126ddb45ce05b900",
+        "name": "",
+        "measurement": "acces",
+        "precision": "",
+        "retentionPolicy": "",
+        "database": "database",
+        "precisionV18FluxV20": "ms",
+        "retentionPolicyV18Flux": "",
+        "org": "hopital_org",
+        "bucket": "hopital_bucket",
+        "x": 750,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "58a172d6582e7191",
+        "type": "debug",
+        "z": "f6f2187d.f17ca8",
+        "name": "debug 1",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 700,
+        "y": 240,
+        "wires": []
+    },
+    {
+        "id": "d9ed4490bbc3b8b4",
+        "type": "mqtt out",
+        "z": "f6f2187d.f17ca8",
+        "name": "",
+        "topic": "securite/alertes",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "62b311a0765ebb48",
+        "x": 740,
+        "y": 400,
+        "wires": []
+    },
+    {
+        "id": "3436fd6817214d26",
+        "type": "mqtt out",
+        "z": "f6f2187d.f17ca8",
+        "name": "",
+        "topic": "securite/porte/commande",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "49f402ae686347fe",
+        "x": 730,
+        "y": 560,
+        "wires": []
+    },
+    {
+        "id": "38e0b84f8f13fbf8",
+        "type": "inject",
+        "z": "f6f2187d.f17ca8",
+        "name": "Capteurs auto",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "5",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "normal",
+        "payloadType": "str",
+        "x": 120,
+        "y": 640,
+        "wires": [
+            [
+                "321c6500539db08c"
+            ]
+        ]
+    },
+    {
+        "id": "8eba0b9a89e9f977",
+        "type": "inject",
+        "z": "f6f2187d.f17ca8",
+        "name": "Simuler surchauffe",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "surchauffe",
+        "payloadType": "str",
+        "x": 130,
+        "y": 760,
+        "wires": [
+            [
+                "321c6500539db08c"
+            ]
+        ]
+    },
+    {
+        "id": "321c6500539db08c",
+        "type": "function",
+        "z": "f6f2187d.f17ca8",
+        "name": "capteurs",
+        "func": "const salles = ['bloc_operatoire', 'salle_soins', 'pharmacie'];\nconst salle = salles[Math.floor(Math.random() * salles.length)];\nconst rnd = (min, max) => Math.round((min + Math.random() * (max - min)) * 10) / 10;\n\nlet temperature = rnd(21, 23);\nlet humidite = rnd(45, 55);\nlet mouvement = 0;\n\n// Anomalie uniquement quand tu cliques sur \"Simuler surchauffe\"\nif (msg.payload === 'surchauffe') {\n  temperature = rnd(31, 38);\n}\n\nlet type = 'aucune';\nlet severite = 'info';\n\nif (temperature > 28) {\n  type = 'temperature_elevee';\n  severite = 'critique';\n} else if (humidite > 75) {\n  type = 'humidite_elevee';\n  severite = 'avertissement';\n}\n\nconst m1 = {\n  payload: [\n    { temperature: temperature, humidite: humidite, mouvement: mouvement },\n    { salle: salle, severite: severite, anomalie: type }\n  ]\n};\n\nlet m2 = null;\nif (type !== 'aucune') {\n  m2 = {\n    payload: {\n      type: type,\n      severite: severite,\n      salle: salle,\n      temperature: temperature,\n      heure: new Date().toISOString()\n    }\n  };\n}\nreturn [m1, m2];",
+        "outputs": 2,
+        "timeout": "0",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 700,
+        "wires": [
+            [
+                "340a2e21980d351b",
+                "03aafb11a3a9d08b",
+                "25c627f5b23d3cc7"
+            ],
+            [
+                "71f7a6b9ab8cf432",
+                "d9ed4490bbc3b8b4"
+            ]
+        ]
+    },
+    {
+        "id": "340a2e21980d351b",
+        "type": "influxdb out",
+        "z": "f6f2187d.f17ca8",
+        "influxdb": "99f3410f17b51d0b",
+        "name": "",
+        "measurement": "capteurs",
+        "precision": "",
+        "retentionPolicy": "",
+        "database": "database",
+        "precisionV18FluxV20": "ms",
+        "retentionPolicyV18Flux": "",
+        "org": "hopital_org",
+        "bucket": "hopital_bucket",
+        "x": 700,
+        "y": 820,
+        "wires": []
+    },
+    {
+        "id": "03aafb11a3a9d08b",
+        "type": "debug",
+        "z": "f6f2187d.f17ca8",
+        "name": "Capteurs",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 680,
+        "y": 760,
+        "wires": []
+    },
+    {
+        "id": "71f7a6b9ab8cf432",
+        "type": "debug",
+        "z": "f6f2187d.f17ca8",
+        "name": "Alertes",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 720,
+        "y": 460,
+        "wires": []
+    },
+    {
+        "id": "8741f7636a8797cd",
+        "type": "function",
+        "z": "f6f2187d.f17ca8",
+        "name": "Etat porte",
+        "func": "const p = msg.payload;\nconst heure = new Date().toLocaleTimeString('fr-FR');\n\nif (p.ouvrir) {\n  node.status({ fill: 'green', shape: 'dot', text: 'PORTE OUVERTE - badge ' + p.badge_id });\n  msg.payload = 'LA PORTE EST OUVERTE | ' + p.salle + ' | badge ' + p.badge_id + ' | ' + heure;\n} else {\n  node.status({ fill: 'red', shape: 'dot', text: 'AUCUN ACCES - badge ' + p.badge_id });\n  msg.payload = 'AUCUN ACCES | ' + p.salle + ' | badge ' + p.badge_id + ' | ' + heure;\n}\n\n// Le statut s'efface au bout de 5 secondes\nsetTimeout(() => node.status({}), 5000);\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 440,
+        "y": 160,
+        "wires": [
+            [
+                "2e8888ca89823832"
+            ]
+        ]
+    },
+    {
+        "id": "2e8888ca89823832",
+        "type": "debug",
+        "z": "f6f2187d.f17ca8",
+        "name": "Porte",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 690,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "25c627f5b23d3cc7",
+        "type": "function",
+        "z": "f6f2187d.f17ca8",
+        "name": "Affichage capteurs",
+        "func": "const champs = msg.payload[0];\nconst tags = msg.payload[1];\n\nconst texte = tags.salle + ' | Temperature : ' + champs.temperature + ' °C | Humidite : ' + champs.humidite + ' %';\n\n// Voyant sous le nœud : vert si normal, rouge si anormal\nif (tags.anomalie === 'aucune') {\n    node.status({ fill: 'green', shape: 'dot', text: texte });\n} else {\n    node.status({ fill: 'red', shape: 'ring', text: texte });\n}\n\nmsg.payload = texte;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 390,
+        "y": 900,
+        "wires": [
+            [
+                "876d419320fba187"
+            ]
+        ]
+    },
+    {
+        "id": "876d419320fba187",
+        "type": "debug",
+        "z": "f6f2187d.f17ca8",
+        "name": "Valeurs capteurs",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 690,
+        "y": 900,
+        "wires": []
+    },
+    {
+        "id": "f650b0daa875ac32",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "mqtt",
+        "port": 1883,
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": 4,
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "126ddb45ce05b900",
+        "type": "influxdb",
+        "hostname": "127.0.0.1",
+        "port": 8086,
+        "protocol": "http",
+        "database": "database",
+        "name": "",
+        "usetls": false,
+        "tls": "",
+        "influxdbVersion": "2.0",
+        "url": "http://influxdb:8086",
+        "timeout": 10,
+        "rejectUnauthorized": true
+    },
+    {
+        "id": "62b311a0765ebb48",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "mqtt",
+        "port": 1883,
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": 4,
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "49f402ae686347fe",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "mqtt",
+        "port": 1883,
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": 4,
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "99f3410f17b51d0b",
+        "type": "influxdb",
+        "hostname": "http://influxdb:8086",
+        "port": 8086,
+        "protocol": "http",
+        "database": "database",
+        "name": "",
+        "usetls": false,
+        "tls": "",
+        "influxdbVersion": "2.0",
+        "url": "http://influxdb:8086",
+        "timeout": 10,
+        "rejectUnauthorized": true
+    },
+    {
+        "id": "40004cd4a89671f6",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-contrib-influxdb": "0.7.0"
+        }
+    }
+]
